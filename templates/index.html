@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voice Master</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:    #0a0a0a;
+    --s1:    #111;
+    --s2:    #161616;
+    --dim:   #222;
+    --dim2:  #2e2e2e;
+    --text:  #e4e4e4;
+    --muted: #555;
+    --cyan:  #22d3ee;
+    --green: #4ade80;
+    --red:   #f87171;
+    --font:  system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono:  "SF Mono", "Fira Code", ui-monospace, monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    padding: 48px 24px 80px;
+  }
+
+  .col { max-width: 680px; margin: 0 auto; }
+
+  /* ── header ── */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 48px;
+  }
+  .logo {
+    width: 30px; height: 30px; border-radius: 7px;
+    background: var(--cyan);
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 5px; gap: 2px; flex-shrink: 0;
+  }
+  .logo span { width: 3px; background: #0a0a0a; border-radius: 2px; }
+  h1 { font-size: 16px; font-weight: 600; }
+  h1 small { font-weight: 400; color: var(--muted); margin-left: 6px; font-size: 13px; }
+
+  /* ── drop zone ── */
+  #drop-zone {
+    border: 1.5px dashed var(--dim2);
+    border-radius: 10px;
+    padding: 56px 32px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 8px; cursor: pointer; text-align: center;
+    position: relative;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  #drop-zone:hover, #drop-zone.over {
+    border-color: var(--cyan);
+    background: rgba(34,211,238,0.03);
+  }
+  #drop-zone.has-file {
+    border-style: solid; border-color: var(--dim);
+    background: var(--s1); padding: 24px 32px;
+  }
+  #file-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .dz-icon {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--s2); border: 1px solid var(--dim2);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 4px;
+  }
+  #drop-zone.has-file .dz-icon {
+    background: rgba(34,211,238,0.08);
+    border-color: rgba(34,211,238,0.25);
+  }
+  .dz-primary  { font-size: 15px; font-weight: 500; }
+  .dz-secondary { font-size: 13px; color: var(--muted); }
+
+  /* ── file info bar ── */
+  #file-bar {
+    display: none; align-items: center;
+    gap: 10px; margin-top: 12px;
+    padding: 10px 14px;
+    background: var(--s1); border-radius: 8px;
+    border: 1px solid var(--dim);
+  }
+  #file-bar.on { display: flex; }
+  #file-bar strong {
+    flex: 1; font-size: 13px; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #file-bar span { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+  /* ── preset selector ── */
+  #preset-section { display: none; margin-top: 20px; }
+  #preset-section.on { display: block; }
+
+  .ps-label { font-size: 13px; font-weight: 600; }
+  .ps-desc  { font-size: 12px; color: var(--muted); }
+
+  .ps-nr {
+    font-size: 11px; font-weight: 600; padding: 2px 7px;
+    border-radius: 4px; white-space: nowrap; flex-shrink: 0;
+  }
+  .nr-off  { background: rgba(255,255,255,0.06); color: var(--muted); }
+  .nr-low  { background: rgba(34,211,238,0.10);  color: var(--cyan);  }
+  .nr-mod  { background: rgba(251,191,36,0.12);  color: #fbbf24;      }
+  .nr-high { background: rgba(248,113,113,0.12); color: var(--red);   }
+
+  .ps-chevron { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+
+  /* preset grid */
+  #preset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .preset-card {
+    display: flex; flex-direction: column; gap: 0;
+    padding: 14px 16px;
+    background: var(--s1); border: 1px solid var(--dim);
+    border-radius: 8px; cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .preset-card:hover { border-color: var(--dim2); background: var(--s2); }
+  .preset-card.selected {
+    border-color: var(--cyan);
+    background: rgba(34,211,238,0.04);
+  }
+
+  .pc-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .pc-icon  { font-size: 16px; line-height: 1; flex-shrink: 0; }
+  .pc-label { font-size: 13px; font-weight: 600; flex: 1; }
+  .pc-nr    { font-size: 10px; font-weight: 700; padding: 2px 6px;
+              border-radius: 4px; flex-shrink: 0; letter-spacing: 0.03em; }
+
+  .pc-for {
+    font-size: 11px; color: var(--muted); line-height: 1.45;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--dim);
+  }
+  .pc-for strong { color: #777; font-weight: 500; }
+
+  .pc-detail {
+    font-size: 11.5px; color: #888; line-height: 1.55;
+  }
+  .preset-card.selected .pc-detail { color: #999; }
+
+  /* ── action row ── */
+  #action-row {
+    display: none; justify-content: flex-end;
+    margin-top: 20px;
+  }
+  #action-row.on { display: flex; }
+
+  /* ── buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 20px; border-radius: 8px;
+    font-size: 14px; font-weight: 600; font-family: inherit;
+    border: none; cursor: pointer; text-decoration: none;
+    transition: opacity 0.15s, transform 0.1s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+  .btn-primary { background: var(--cyan); color: #0a0a0a; }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-ghost  {
+    background: transparent; color: var(--text);
+    border: 1px solid var(--dim2);
+  }
+  .btn-ghost:hover { border-color: #444; }
+
+  /* ── divider ── */
+  hr { border: none; border-top: 1px solid #181818; margin: 36px 0; }
+
+  /* ── progress ── */
+  #progress-section { display: none; }
+  #progress-section.on { display: block; }
+
+  .section-title {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.07em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 16px;
+  }
+
+  .step {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 12px 0; opacity: 0.3;
+    transition: opacity 0.2s;
+    border-top: 1px solid #131313;
+  }
+  .step:first-of-type { border-top: none; }
+  .step.active, .step.done, .step.skipped { opacity: 1; }
+
+  .step-dot {
+    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid var(--dim2); position: relative; margin-top: 2px;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .step.active .step-dot {
+    border-color: var(--cyan); border-right-color: transparent;
+    animation: spin 0.7s linear infinite;
+  }
+  .step.done .step-dot { background: var(--green); border-color: var(--green); }
+  .step.done .step-dot::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230a0a0a' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center/12px no-repeat;
+  }
+  .step.skipped .step-dot { background: var(--s2); }
+  .step.skipped .step-dot::after {
+    content: "—"; position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--muted);
+  }
+  .step.error .step-dot { background: var(--red); border-color: var(--red); }
+  .step.error .step-dot::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230a0a0a' stroke-width='3' stroke-linecap='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E") center/12px no-repeat;
+  }
+
+  .step-body { flex: 1; min-width: 0; }
+  .step-label  { font-size: 14px; font-weight: 500; }
+  .step-detail {
+    font-size: 12px; color: var(--muted); font-family: var(--mono);
+    margin-top: 2px; min-height: 16px;
+  }
+  .step.done .step-detail { color: rgba(74,222,128,0.6); }
+
+  /* ── accordion ── */
+  .step-acc {
+    margin-top: 8px;
+    display: none; /* shown by JS once params arrive */
+  }
+  .step-acc[data-ready] { display: block; }
+
+  .step-acc summary {
+    font-size: 11px; color: var(--muted); cursor: pointer;
+    list-style: none; display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 0;
+  }
+  .step-acc summary::-webkit-details-marker { display: none; }
+  .step-acc summary::after { content: "▾"; font-size: 9px; }
+  .step-acc[open] summary::after { content: "▴"; }
+
+  .params-grid {
+    display: grid; grid-template-columns: auto 1fr;
+    gap: 4px 16px; margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--s2); border-radius: 6px;
+    border: 1px solid var(--dim);
+  }
+  .pk { font-size: 11px; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+  .pv { font-size: 11px; color: var(--text);  font-family: var(--mono); }
+
+  /* ── error box ── */
+  #error-box {
+    display: none; margin-top: 16px;
+    padding: 12px 14px;
+    background: rgba(248,113,113,0.07);
+    border: 1px solid rgba(248,113,113,0.2);
+    border-radius: 8px;
+    font-size: 13px; color: var(--red); font-family: var(--mono);
+    word-break: break-all;
+  }
+  #error-box.on { display: block; }
+
+  /* ── result ── */
+  #result-section { display: none; }
+  #result-section.on { display: block; animation: rise 0.3s ease; }
+
+  .stats {
+    font-size: 13px; font-family: var(--mono); color: var(--muted);
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  #stat-in  { color: var(--muted); }
+  #stat-out { color: var(--green); font-weight: 600; }
+
+  #spectrogram-img {
+    display: block; width: 100%; height: auto;
+    border-radius: 8px; border: 1px solid #181818;
+    background: #000; margin-bottom: 24px;
+  }
+
+  .result-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* ── animations ── */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+<div class="col">
+
+  <header>
+    <div class="logo">
+      <span style="height:6px"></span>
+      <span style="height:11px"></span>
+      <span style="height:15px"></span>
+      <span style="height:9px"></span>
+      <span style="height:13px"></span>
+    </div>
+    <h1>Voice Master <small>spoken-word mastering</small></h1>
+  </header>
+
+  <!-- drop zone -->
+  <div id="drop-zone" role="button" tabindex="0">
+    <input type="file" id="file-input" accept="audio/*,.wav,.flac,.mp3,.aiff,.aif,.m4a,.ogg,.opus">
+    <div class="dz-icon" id="dz-icon">
+      <svg id="icon-up" width="20" height="20" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+           style="color:var(--muted)">
+        <polyline points="16 16 12 12 8 16"/>
+        <line x1="12" y1="12" x2="12" y2="21"/>
+        <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+      </svg>
+      <svg id="icon-file" width="20" height="20" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+           style="display:none;color:var(--cyan)">
+        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+        <polyline points="13 2 13 9 20 9"/>
+      </svg>
+    </div>
+    <p class="dz-primary"  id="dz-primary">Drop audio file here</p>
+    <p class="dz-secondary" id="dz-secondary">WAV · FLAC · MP3 · AIFF · M4A · or click to browse</p>
+  </div>
+
+  <!-- file info bar -->
+  <div id="file-bar">
+    <strong id="fn-label">—</strong>
+    <span   id="fs-label">—</span>
+  </div>
+
+  <!-- preset selector -->
+  <div id="preset-section">
+
+    <div id="preset-grid">
+      <!-- cards injected by JS from PRESETS data -->
+    </div>
+
+  </div>
+
+  <!-- master button -->
+  <div id="action-row">
+    <button class="btn btn-primary" id="master-btn" onclick="startMastering()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="5 3 19 12 5 21 5 3"/>
+      </svg>
+      Master It
+    </button>
+  </div>
+
+  <!-- progress -->
+  <div id="progress-section">
+    <hr>
+    <p class="section-title" id="progress-label">Mastering</p>
+
+    <div class="step" id="step-load">
+      <div class="step-dot"></div>
+      <div class="step-body">
+        <div class="step-label">Loading file</div>
+        <div class="step-detail" id="detail-load"></div>
+        <details class="step-acc" id="acc-load"><summary>Details</summary>
+          <div class="params-grid" id="params-load"></div>
+        </details>
+      </div>
+    </div>
+
+    <div class="step" id="step-noise">
+      <div class="step-dot"></div>
+      <div class="step-body">
+        <div class="step-label">Noise reduction</div>
+        <div class="step-detail" id="detail-noise"></div>
+        <details class="step-acc" id="acc-noise"><summary>Details</summary>
+          <div class="params-grid" id="params-noise"></div>
+        </details>
+      </div>
+    </div>
+
+    <div class="step" id="step-effects">
+      <div class="step-dot"></div>
+      <div class="step-body">
+        <div class="step-label">EQ · Compression · Limiter</div>
+        <div class="step-detail" id="detail-effects"></div>
+        <details class="step-acc" id="acc-effects"><summary>Details</summary>
+          <div class="params-grid" id="params-effects"></div>
+        </details>
+      </div>
+    </div>
+
+    <div class="step" id="step-loudness">
+      <div class="step-dot"></div>
+      <div class="step-body">
+        <div class="step-label">Loudness normalisation</div>
+        <div class="step-detail" id="detail-loudness"></div>
+        <details class="step-acc" id="acc-loudness"><summary>Details</summary>
+          <div class="params-grid" id="params-loudness"></div>
+        </details>
+      </div>
+    </div>
+
+    <div class="step" id="step-spectro">
+      <div class="step-dot"></div>
+      <div class="step-body">
+        <div class="step-label">Spectrograms</div>
+        <div class="step-detail" id="detail-spectro"></div>
+        <details class="step-acc" id="acc-spectro"><summary>Details</summary>
+          <div class="params-grid" id="params-spectro"></div>
+        </details>
+      </div>
+    </div>
+
+    <div id="error-box"></div>
+  </div>
+
+  <!-- result -->
+  <div id="result-section">
+    <hr>
+    <div class="stats">
+      <span id="stat-in">—</span>
+      <span style="color:var(--dim2)">→</span>
+      <span id="stat-out">—</span>
+      <span style="color:var(--dim2)">·</span>
+      <span id="stat-dur">—</span>
+      <span style="color:var(--dim2)">·</span>
+      <span id="stat-sr">—</span>
+      <span style="color:var(--dim2)">·</span>
+      <span id="stat-ch">—</span>
+    </div>
+    <img id="spectrogram-img" src="" alt="Before / After spectrogram">
+    <div class="result-actions">
+      <a class="btn btn-primary" id="download-btn" download>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download
+      </a>
+      <button class="btn btn-ghost" onclick="resetUI()">Process another</button>
+    </div>
+  </div>
+
+</div><!-- .col -->
+
+<script>
+// ── preset data (mirrors presets.py) ──────────────────────────────────────────
+const PRESETS = [
+  {
+    id:"studio", icon:"🎙", label:"Studio mic", nr:"No NR", nrClass:"nr-off",
+    desc:"Clean close-mic, quiet room",
+    bestFor:"Condenser or dynamic mic, acoustically treated room, dedicated podcast setup.",
+    detail:"Noise reduction is disabled — applying NR to a clean recording introduces spectral artefacts (musical noise) with zero benefit. Light EQ and standard compression keep the sound natural and preserve high-frequency air.",
+  },
+  {
+    id:"headset", icon:"🎧", label:"Headset / Earbuds", nr:"Moderate NR", nrClass:"nr-mod",
+    desc:"Close mic with background hiss",
+    bestFor:"Apple EarPods, Jabra, gaming headsets, call-centre boom mics.",
+    detail:"Cuts the nasal 'honk' around 500 Hz caused by mic-housing resonance — the most common complaint with consumer headsets. Moderate noise reduction handles persistent hiss. Presence boost at 3.5 kHz pulls the voice forward.",
+  },
+  {
+    id:"room", icon:"🏠", label:"Room recording", nr:"Low NR", nrClass:"nr-low",
+    desc:"One person, typical indoor space",
+    bestFor:"Home office, voice memo app, untreated room, DIY podcast, any everyday solo recording.",
+    detail:"The default. Light noise reduction removes HVAC hiss and fan hum without artefacts. Cuts boxiness at 400 Hz (common in parallel-wall rooms), boosts clarity at 4 kHz. Moderate compression for consistent level.",
+  },
+  {
+    id:"interview", icon:"🗣️", label:"Interview", nr:"Low NR", nrClass:"nr-low",
+    desc:"Two people, one or two mics",
+    bestFor:"Journalist field interview, two-person podcast, 1-on-1 conversation recorded on a single device.",
+    detail:"Compression is deliberately lighter (2.5:1 vs 3:1) to avoid pumping when two voices at different distances take turns. Preserves the natural dynamic contrast — the slight level drop when someone pauses is intentional, not a problem.",
+  },
+  {
+    id:"multi", icon:"👥", label:"Multiple speakers", nr:"Moderate NR", nrClass:"nr-mod",
+    desc:"Panel, roundtable, 3 or more people",
+    bestFor:"Conference recording, group podcast, roundtable discussion, meeting capture.",
+    detail:"Very gentle compression (2:1) deliberately avoids equalising speaker levels. In a group, who speaks loudest carries meaning — heavy compression destroys that hierarchy. Moderate noise reduction handles room hum without over-processing quieter voices.",
+  },
+  {
+    id:"zoom", icon:"💻", label:"Zoom / Remote call", nr:"Low NR", nrClass:"nr-low",
+    desc:"Any platform-recorded video call",
+    bestFor:"Zoom, Teams, Google Meet, Riverside, Squadcast — any recording exported from a video call platform.",
+    detail:"Applies minimal noise reduction — Zoom already runs its own noise suppression, double-processing creates artefacts. Compensates for codec damage instead: boosts presence at 3.5 kHz and air above 8 kHz that Opus/AAC compression typically crushes. Gentle compression because the platform already squashed dynamics.",
+  },
+  {
+    id:"phone", icon:"📱", label:"Phone / Mobile", nr:"High NR", nrClass:"nr-high",
+    desc:"Mobile mic, voice memo, telephony",
+    bestFor:"iPhone Voice Memo, WhatsApp audio, phone call recording, any handheld mobile capture.",
+    detail:"High-pass at 120 Hz cuts below the phone's useful frequency range (handling noise, pocket rumble). Targets 3 kHz where telephony retains most speech intelligibility. Aggressive noise reduction tackles mobile mic noise. More compression to control the wide level swings typical of handheld recording.",
+  },
+  {
+    id:"outdoor", icon:"🌿", label:"Outdoor", nr:"High NR", nrClass:"nr-high",
+    desc:"Outside recording, wind and ambient noise",
+    bestFor:"Field interview, street recording, nature documentary, run-and-gun journalism, sports commentary.",
+    detail:"High-pass raised to 150 Hz specifically to cut wind rumble — the dominant problem outdoors. Steepest low-shelf cut (−7 dB @ 300 Hz) removes handling noise and low-frequency ambient wash. Highest noise reduction setting (88%). Significant presence boost to recover voice from the noise floor.",
+  },
+];
+const DEFAULT_PRESET = "room";
+
+// ── state ─────────────────────────────────────────────────────────────────────
+let selectedFile = null, jobId = null, es = null;
+let currentPreset = DEFAULT_PRESET;
+const STEPS = ["load","noise","effects","loudness","spectro"];
+
+// ── build preset grid ─────────────────────────────────────────────────────────
+const grid = document.getElementById("preset-grid");
+PRESETS.forEach(p => {
+  const card = document.createElement("div");
+  card.className = "preset-card" + (p.id === DEFAULT_PRESET ? " selected" : "");
+  card.dataset.id = p.id;
+  card.innerHTML = `
+    <div class="pc-header">
+      <span class="pc-icon">${p.icon}</span>
+      <span class="pc-label">${p.label}</span>
+      <span class="pc-nr ${p.nrClass}">${p.nr}</span>
+    </div>
+    <div class="pc-for"><strong>Best for:</strong> ${p.bestFor}</div>
+    <div class="pc-detail">${p.detail}</div>`;
+  card.addEventListener("click", () => selectPreset(p.id));
+  grid.appendChild(card);
+});
+
+function selectPreset(id) {
+  const p = PRESETS.find(x => x.id === id);
+  if (!p) return;
+  currentPreset = id;
+  document.querySelectorAll(".preset-card").forEach(c =>
+    c.classList.toggle("selected", c.dataset.id === id));
+}
+
+// ── drag & drop ───────────────────────────────────────────────────────────────
+const dropZone  = document.getElementById("drop-zone");
+const fileInput = document.getElementById("file-input");
+
+dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("over"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("over"));
+dropZone.addEventListener("drop", e => {
+  e.preventDefault(); dropZone.classList.remove("over");
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+dropZone.addEventListener("click", e => { if (e.target !== fileInput) fileInput.click(); });
+dropZone.addEventListener("keydown", e => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+
+function setFile(f) {
+  selectedFile = f;
+  dropZone.classList.add("has-file");
+  document.getElementById("icon-up").style.display   = "none";
+  document.getElementById("icon-file").style.display = "block";
+  document.getElementById("dz-primary").textContent   = f.name;
+  document.getElementById("dz-secondary").textContent = fmtBytes(f.size) + " · ready";
+  document.getElementById("fn-label").textContent = f.name;
+  document.getElementById("fs-label").textContent = fmtBytes(f.size);
+  document.getElementById("file-bar").classList.add("on");
+  document.getElementById("preset-section").classList.add("on");
+  document.getElementById("action-row").classList.add("on");
+}
+
+// ── mastering ─────────────────────────────────────────────────────────────────
+async function startMastering() {
+  if (!selectedFile) return;
+  document.getElementById("master-btn").disabled = true;
+  fileInput.disabled = true;
+  dropZone.style.cursor = "default";
+  document.getElementById("progress-section").classList.add("on");
+
+  const form = new FormData();
+  form.append("file", selectedFile);
+  form.append("preset", currentPreset);
+
+  let res;
+  try { res = await fetch("/upload", { method: "POST", body: form }); }
+  catch (e) { return showError("Upload failed: " + e.message); }
+
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    return showError(d.error || `HTTP ${res.status}`);
+  }
+
+  ({ job_id: jobId } = await res.json());
+  es = new EventSource(`/process/${jobId}`);
+  es.onmessage = handleMsg;
+  es.onerror = () => {
+    es.close();
+    if (!document.getElementById("result-section").classList.contains("on"))
+      showError("Connection lost — please try again.");
+  };
+}
+
+// ── SSE ───────────────────────────────────────────────────────────────────────
+function handleMsg(e) {
+  const msg = JSON.parse(e.data);
+  if (msg.type === "ping") return;
+
+  if (msg.type === "step") {
+    const el  = document.getElementById(`step-${msg.step}`);
+    const det = document.getElementById(`detail-${msg.step}`);
+    if (!el) return;
+    el.className = "step " + (msg.status === "running" ? "active" : msg.status);
+    if (det && msg.detail) det.textContent = msg.detail;
+
+    // populate accordion when done/skipped
+    if (msg.params && Object.keys(msg.params).length && msg.status !== "running") {
+      const grid = document.getElementById(`params-${msg.step}`);
+      const acc  = document.getElementById(`acc-${msg.step}`);
+      if (grid && acc) {
+        grid.innerHTML = Object.entries(msg.params)
+          .map(([k,v]) => `<span class="pk">${k}</span><span class="pv">${v}</span>`)
+          .join("");
+        acc.setAttribute("data-ready", "");
+      }
+    }
+    return;
+  }
+
+  if (msg.type === "done") { es.close(); showResult(msg); return; }
+
+  if (msg.type === "error") {
+    es.close();
+    STEPS.forEach(id => {
+      const el = document.getElementById(`step-${id}`);
+      if (el?.classList.contains("active")) el.className = "step error";
+    });
+    showError(msg.message);
+  }
+}
+
+// ── result ────────────────────────────────────────────────────────────────────
+function showResult(meta) {
+  document.getElementById("progress-label").textContent = "Done";
+  const sr    = meta.sample_rate;
+  const srStr = sr >= 1000 ? (sr/1000).toFixed(1).replace(".0","") + " kHz" : sr + " Hz";
+  const chStr = meta.channels === 1 ? "mono" : meta.channels === 2 ? "stereo" : meta.channels + "ch";
+  document.getElementById("stat-in").textContent  = meta.input_lufs.toFixed(1) + " LUFS";
+  document.getElementById("stat-out").textContent = meta.output_lufs.toFixed(1) + " LUFS";
+  document.getElementById("stat-dur").textContent = meta.duration.toFixed(1) + "s";
+  document.getElementById("stat-sr").textContent  = srStr;
+  document.getElementById("stat-ch").textContent  = chStr;
+  document.getElementById("spectrogram-img").src  = `/result/${jobId}/spectrogram?t=${Date.now()}`;
+  document.getElementById("download-btn").href    = `/result/${jobId}/audio`;
+  const r = document.getElementById("result-section");
+  r.classList.add("on");
+  r.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function showError(msg) {
+  document.getElementById("error-box").textContent = msg;
+  document.getElementById("error-box").classList.add("on");
+}
+
+// ── reset ─────────────────────────────────────────────────────────────────────
+function resetUI() {
+  if (es) { es.close(); es = null; }
+  selectedFile = null; jobId = null; currentPreset = DEFAULT_PRESET;
+
+  dropZone.classList.remove("has-file","over");
+  dropZone.style.cursor = "";
+  fileInput.disabled = false; fileInput.value = "";
+  document.getElementById("icon-up").style.display   = "block";
+  document.getElementById("icon-file").style.display = "none";
+  document.getElementById("dz-primary").textContent   = "Drop audio file here";
+  document.getElementById("dz-secondary").textContent = "WAV · FLAC · MP3 · AIFF · M4A · or click to browse";
+
+  document.getElementById("file-bar").classList.remove("on");
+  document.getElementById("preset-section").classList.remove("on");
+  document.getElementById("action-row").classList.remove("on");
+  document.getElementById("master-btn").disabled = false;
+
+  selectPreset(DEFAULT_PRESET);
+
+  document.getElementById("progress-section").classList.remove("on");
+  document.getElementById("progress-label").textContent = "Mastering";
+  STEPS.forEach(id => {
+    const el  = document.getElementById(`step-${id}`);
+    const det = document.getElementById(`detail-${id}`);
+    const acc = document.getElementById(`acc-${id}`);
+    const pg  = document.getElementById(`params-${id}`);
+    if (el)  el.className = "step";
+    if (det) det.textContent = "";
+    if (acc) { acc.removeAttribute("data-ready"); acc.removeAttribute("open"); }
+    if (pg)  pg.innerHTML = "";
+  });
+  document.getElementById("error-box").textContent = "";
+  document.getElementById("error-box").classList.remove("on");
+
+  const r = document.getElementById("result-section");
+  r.classList.remove("on");
+  document.getElementById("spectrogram-img").src = "";
+  document.getElementById("download-btn").removeAttribute("href");
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// ── util ──────────────────────────────────────────────────────────────────────
+function fmtBytes(b) {
+  if (b < 1024)       return b + " B";
+  if (b < 1048576)    return (b/1024).toFixed(1) + " KB";
+  if (b < 1073741824) return (b/1048576).toFixed(1) + " MB";
+  return (b/1073741824).toFixed(2) + " GB";
+}
+</script>
+</body>
+</html>
